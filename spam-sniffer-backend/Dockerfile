@@ -10,6 +10,9 @@ COPY . /app
 # Install the dependencies from the requirements.txt file
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install gunicorn for production server
+RUN pip install gunicorn
+
 # Expose port 5000 to the outside world
 EXPOSE 5000
 
@@ -19,5 +22,5 @@ ENV FLASK_ENV=development
 ENV MONGO_URI=mongodb://mongo:27017
 ENV GOOGLE_CLIENT_SECRET=your_google_client_secret_file
 
-# Run the Flask app
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+# Run the Flask app with gunicorn for production
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "app:app"]

@@ -2,15 +2,10 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files first for better caching
 COPY package*.json ./
 
-# Clear npm cache and install dependencies
-RUN npm cache clean --force && \
-    rm -rf node_modules package-lock.json && \
-    npm install --omit=optional
+RUN npm install --omit=optional
 
-# Copy the rest of the application
 COPY . .
 
 # Create .env file from environment variables if they exist
@@ -20,5 +15,4 @@ RUN echo "VITE_REACT_APP_CLIENT_ID=${VITE_REACT_APP_CLIENT_ID:-your_google_clien
 
 EXPOSE 5173
 
-# Use npm run dev with proper host binding
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

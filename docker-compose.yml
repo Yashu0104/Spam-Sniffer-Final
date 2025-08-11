@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   flask-app:
     build: ./spam-sniffer-backend
@@ -9,10 +7,14 @@ services:
     environment:
       - MONGO_URI=mongodb://mongo:27017
       - GOOGLE_CLIENT_SECRET=your_google_client_secret_file
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
     depends_on:
       - mongo
     volumes:
       - ./spam-sniffer-backend:/app
+    networks:
+      - spam-sniffer-network
 
   mongo:
     image: mongo:latest
@@ -21,17 +23,30 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    networks:
+      - spam-sniffer-network
 
   react-app:
     build: ./frontend
     container_name: react-app
     ports:
-      - "3000:3000"
+      - "5173:5173"
+    environment:
+      - VITE_REACT_APP_CLIENT_ID=your_google_client_id_here
+      - VITE_REACT_APP_API_KEY=your_google_api_key_here
+      - VITE_REACT_APP_SCOPES=https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify
     depends_on:
       - flask-app
     volumes:
       - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - spam-sniffer-network
 
 volumes:
   mongo-data:
     driver: local
+
+networks:
+  spam-sniffer-network:
+    driver: bridge

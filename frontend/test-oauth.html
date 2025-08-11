@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google OAuth Test</title>
+    <script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body>
+    <h1>Google OAuth Test</h1>
+    <button id="loginBtn">Test Google Login</button>
+    <div id="status"></div>
+
+    <script>
+        const CLIENT_ID = '321887573250-cvd2ltaf4iqp1dklufl5u58au4m8778m.apps.googleusercontent.com';
+        const API_KEY = 'AIzaSyDUnpga4m6hY2ItnHLy0IStmQe2_Q2JHbQ';
+        const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify';
+
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML += '<p>' + message + '</p>';
+        }
+
+        function start() {
+            updateStatus('Starting GAPI initialization...');
+            gapi.client.init({
+                apiKey: API_KEY,
+                clientId: CLIENT_ID,
+                scope: SCOPES,
+                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest']
+            }).then(function() {
+                updateStatus('GAPI initialized successfully');
+                updateStatus('GAPI client: ' + (gapi.client ? 'Available' : 'Not available'));
+                updateStatus('GAPI auth2: ' + (gapi.auth2 ? 'Available' : 'Not available'));
+            }).catch(function(error) {
+                updateStatus('GAPI initialization failed: ' + error.message);
+                console.error('GAPI Error:', error);
+            });
+        }
+
+        document.getElementById('loginBtn').addEventListener('click', function() {
+            updateStatus('Login button clicked');
+            
+            if (!gapi.auth2) {
+                updateStatus('GAPI auth2 not available');
+                return;
+            }
+
+            const authInstance = gapi.auth2.getAuthInstance();
+            if (!authInstance) {
+                updateStatus('Auth instance not available');
+                return;
+            }
+
+            updateStatus('Starting sign-in...');
+            authInstance.signIn().then(function(googleUser) {
+                updateStatus('Sign-in successful!');
+                const profile = googleUser.getBasicProfile();
+                updateStatus('User: ' + profile.getName() + ' (' + profile.getEmail() + ')');
+            }).catch(function(error) {
+                updateStatus('Sign-in failed: ' + error.message);
+                console.error('Sign-in Error:', error);
+            });
+        });
+
+        gapi.load('client:auth2', start);
+    </script>
+</body>
+</html>

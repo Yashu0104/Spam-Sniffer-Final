@@ -3,17 +3,10 @@ import axios from "axios";
 import { gapi } from "gapi-script";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
-
-const CLIENT_ID = import.meta.env.VITE_REACT_APP_CLIENT_ID;
-const API_KEY = import.meta.env.VITE_REACT_APP_API_KEY;
-const SCOPES = import.meta.env.VITE_REACT_APP_SCOPES;
-
-// Debug environment variables
-console.log("Environment variables:", {
-  CLIENT_ID: CLIENT_ID,
-  API_KEY: API_KEY,
-  SCOPES: SCOPES
-});
+// Environment variables with fallbacks
+const CLIENT_ID = import.meta.env.VITE_REACT_APP_CLIENT_ID || "your_google_client_id_here";
+const API_KEY = import.meta.env.VITE_REACT_APP_API_KEY || "your_google_api_key_here";
+const SCOPES = import.meta.env.VITE_REACT_APP_SCOPES || "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify";
 
 const COLORS = ["#4CAF50", "#FF6F61"]; // Green (non-spam) and Red (spam)
 
@@ -22,24 +15,17 @@ function GmailClient() {
   const [spamResults, setSpamResults] = useState({});
   const [user, setUser] = useState(null); // 👤 Store user info
   const [spamData, setSpamData] = useState({ spam: 0, nonSpam: 0 });
-  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check if environment variables are loaded
-    if (!CLIENT_ID || !API_KEY || !SCOPES) {
-      console.error("Missing environment variables:", { CLIENT_ID, API_KEY, SCOPES });
-      alert("Missing environment variables. Please check your .env file.");
+    // Check if Google API credentials are configured
+    if (CLIENT_ID === "your_google_client_id_here" || API_KEY === "your_google_api_key_here") {
+      setError("Google API credentials not configured. Please set up your Google OAuth2 credentials.");
       return;
     }
 
     function start() {
-      console.log("Starting GAPI initialization...");
-      console.log("Initialization config:", {
-        apiKey: API_KEY,
-        clientId: CLIENT_ID,
-        scope: SCOPES
-      });
-      
       gapi.client
         .init({
           apiKey: API_KEY,
@@ -50,56 +36,30 @@ function GmailClient() {
           ],
         })
         .then(() => {
-          console.log("GAPI client initialized successfully");
-          console.log("GAPI client:", gapi.client);
-          console.log("GAPI auth2:", gapi.auth2);
+          console.log("GAPI client initialized");
+          setError(null);
         })
         .catch((error) => {
           console.error("Error initializing GAPI client", error);
-          console.error("Error details:", {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-          });
-          alert(`GAPI initialization failed: ${error.message}\n\nPlease check the browser console for more details.`);
+          setError("Failed to initialize Google API client. Please check your credentials.");
         });
     }
 
-    console.log("Loading GAPI client:auth2...");
     gapi.load("client:auth2", start);
   }, []);
-
+  
   const handleLogin = async () => {
-    console.log("Login button clicked");
-    setIsLoading(true);
+    if (CLIENT_ID === "your_google_client_id_here" || API_KEY === "your_google_api_key_here") {
+      setError("Please configure your Google API credentials first.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
     
     try {
-      // Check if GAPI is loaded
-      if (!gapi || !gapi.auth2) {
-        console.error("GAPI not loaded yet");
-        alert("GAPI not loaded. Please wait a moment and try again.");
-        return;
-      }
-
-      // Check if auth instance exists
       const authInstance = gapi.auth2.getAuthInstance();
-      if (!authInstance) {
-        console.error("Auth instance not available");
-        alert("Authentication not available. Please refresh the page and try again.");
-        return;
-      }
-
-      console.log("Starting Google sign-in...");
-      console.log("Auth instance:", authInstance);
-      console.log("Client ID:", CLIENT_ID);
-      console.log("API Key:", API_KEY);
-      console.log("Scopes:", SCOPES);
-      
-      // Try to sign in with immediate: false to force popup
-      const googleUser = await authInstance.signIn({
-        prompt: 'select_account'
-      });
-      
+      const googleUser = await authInstance.signIn();
       const profile = googleUser.getBasicProfile();
 
       setUser({
@@ -107,39 +67,19 @@ function GmailClient() {
         email: profile.getEmail(),
       });
 
-      console.log("Signed in successfully!", profile.getName());
+      console.log("Signed in!", profile.getName());
 
       if (!gapi.client.gmail) {
-        console.log("Loading Gmail API...");
         await gapi.client.load("gmail", "v1");
-        console.log("Gmail API loaded successfully");
+        console.log("Gmail API loaded");
       }
 
       loadEmailsInBackground();
     } catch (error) {
       console.error("Error during login or Gmail API loading", error);
-      console.error("Error details:", {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        error: error
-      });
-      
-      // Provide more specific error messages
-      let errorMessage = "Unknown error";
-      if (error.message.includes("popup_closed")) {
-        errorMessage = "Login popup was closed. Please try again.";
-      } else if (error.message.includes("access_denied")) {
-        errorMessage = "Access was denied. Please allow the application to access your Gmail.";
-      } else if (error.message.includes("invalid_client")) {
-        errorMessage = "Invalid client configuration. Please check your Google Cloud Console settings.";
-      } else {
-        errorMessage = error.message || "Unknown error";
-      }
-      
-      alert(`Login failed: ${errorMessage}\n\nPlease check the browser console for more details.`);
+      setError("Failed to sign in. Please try again.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -151,14 +91,19 @@ function GmailClient() {
       setSpamResults({});
       setUser(null);
       setSpamData({ spam: 0, nonSpam: 0 });
+      setError(null);
     });
   };
 
   const loadEmailsInBackground = async () => {
     if (!gapi.client.gmail || !gapi.client.gmail.users) {
       console.error("Gmail API not loaded yet.");
+      setError("Gmail API not loaded. Please try logging in again.");
       return;
     }
+
+    setLoading(true);
+    setError(null);
 
     const query = ""; // Get all unread emails without date restriction
 
@@ -189,6 +134,9 @@ function GmailClient() {
       }
     } catch (error) {
       console.error("Error fetching emails", error);
+      setError("Failed to fetch emails. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -218,6 +166,18 @@ function GmailClient() {
         }
       } catch (error) {
         console.error("Error checking spam:", error);
+        // Set default values if spam check fails
+        setSpamResults((prevResults) => ({
+          ...prevResults,
+          [emailId]: {
+            is_spam: false,
+            spam_score: 0.5,
+            description: "Unable to analyze",
+            summary: "Analysis failed",
+            spam_type: "Unknown"
+          },
+        }));
+        nonSpamCount += 1;
       }
     });
 
@@ -238,6 +198,7 @@ function GmailClient() {
       console.log("Email marked as read:", emailId);
     } catch (error) {
       console.error("Error marking email as read:", error);
+      setError("Failed to mark email as read.");
     }
   };
 
@@ -253,10 +214,7 @@ function GmailClient() {
       console.log("Email moved to trash:", emailId);
     } catch (error) {
       console.error("Error trashing email:", error);
-      alert(
-        "Failed to delete email: " +
-          (error?.result?.error?.message || "Unknown error")
-      );
+      setError("Failed to delete email: " + (error?.result?.error?.message || "Unknown error"));
     }
   };
 
@@ -270,15 +228,21 @@ function GmailClient() {
         Spam Sniffer
       </h2>
     </div>
+    
+    {/* Error Display */}
+    {error && (
+      <div className="bg-red-900 border border-red-700 text-red-200 p-3 rounded-md mb-4 text-sm">
+        {error}
+      </div>
+    )}
+    
     <div className="space-y-4">
       <button
         onClick={handleLogin}
-        disabled={isLoading}
-        className={`w-full bg-[#94a3b8] hover:bg-[#7c8d99] text-white py-2 px-4 rounded-lg shadow-md transition-transform hover:scale-105 ${
-          isLoading ? 'opacity-50 cursor-not-allowed' : ''
-        }`}
+        disabled={loading}
+        className="w-full bg-[#94a3b8] hover:bg-[#7c8d99] disabled:bg-gray-600 text-white py-2 px-4 rounded-lg shadow-md transition-transform hover:scale-105 disabled:cursor-not-allowed"
       >
-        {isLoading ? 'Logging in...' : 'Login with Gmail'}
+        {loading ? "Loading..." : "Login with Gmail"}
       </button>
       <button
         onClick={handleLogout}
@@ -333,9 +297,10 @@ function GmailClient() {
           )}
           <button
             onClick={loadEmailsInBackground}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-md transition hover:scale-105"
+            disabled={loading || !user}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-md shadow-md transition hover:scale-105 disabled:cursor-not-allowed"
           >
-            Refresh Emails
+            {loading ? "Loading..." : "Refresh Emails"}
           </button>
         </div>
 
@@ -387,7 +352,9 @@ function GmailClient() {
               );
             })
           ) : (
-            <p className="text-center text-gray-500 col-span-3">No unread emails found.</p>
+            <p className="text-center text-gray-500 col-span-3">
+              {user ? "No unread emails found." : "Please login to view emails."}
+            </p>
           )}
         </div>
       </div>
